@@ -1,12 +1,12 @@
 # A2SPA Core Protocol Specification
 
-**Document Version:** 0.9.3
+**Document Version:** 0.9.4
 
 **Status:** Independent Technical Working Draft
 
-**Implementation Snapshot:** A2SPA hosted service and helper packages `2.4.2` (protocol `v1.0`, HTTP API `/v1`)
+**Implementation Snapshot:** A2SPA hosted service and helper packages `2.5.0` (protocol `v1.0`, HTTP API `/v1`)
 
-**Date:** October 29, 2026
+**Date:** November 19, 2026
 
 **Review Status:** External technical review requested
 
@@ -16,7 +16,7 @@ Agent-to-Secure Payload Authorization (A2SPA) is an execution-time authorization
 
 A2SPA complements identity systems, policy systems, transport security, monitoring, and pre-deployment agent analysis. It does not attempt to validate natural-language prompts, model alignment, semantic correctness, ethics, legality, or business desirability. Its narrow purpose is deterministic validation of structured execution intent at the runtime boundary.
 
-This draft is aligned with the externally observable behavior of the A2SPA hosted service and public helper packages `2.4.2`. It is not an IETF document, not an adopted standard, not a certification program, and not a security audit.
+This draft is aligned with the externally observable behavior of the A2SPA hosted service and public helper packages `2.5.0`. It is not an IETF document, not an adopted standard, not a certification program, and not a security audit.
 
 ## 1. Status and Scope
 
@@ -102,10 +102,10 @@ The earlier `/api/*` paths, including `POST /api/verify_payload`, `POST /api/con
 
 The public helper packages are:
 
-- Python: `a2spa==2.4.2` (Python 3.11 and 3.12)
-- Node.js: `a2spa@2.4.2` (Node.js 22 or newer)
+- Python: `a2spa==2.5.0` (Python 3.11 to 3.13). Install `a2spa[pq]==2.5.0` for the ML-DSA and hybrid profiles.
+- Node.js: `a2spa@2.5.0` (Node.js 22 to 24). ML-DSA and hybrid signing take a caller-supplied ML-DSA-65 signer function; the package has no dependencies.
 
-Helper packages follow semantic versioning from `2.4.0`. Patch releases do not change the protocol, the API contract, or the signed bytes.
+Helper packages follow semantic versioning from `2.4.0`. Patch releases do not change the protocol, the API contract, or the signed bytes. Minor releases may add signature profiles and optional receipt fields without changing existing ones.
 
 ## 6. Request Envelope
 
@@ -212,6 +212,31 @@ a2spa.pq.mldsa.v1
 
 The ML-DSA profile is available only where the verifier deployment and key record support it. If a payload declares a profile that the verifier or sender key does not support, verification MUST fail closed.
 
+### 8.1 Hybrid Profile
+
+From `2.5.0`, the hybrid post-quantum profile is:
+
+```text
+a2spa.hybrid.rsa3072_pss_sha384.mldsa65.v1
+```
+
+A hybrid signature is two signatures over the same Signed Bytes V1 payload, concatenated as hex:
+
+1. RSASSA-PSS with an RSA-3072 key, SHA-384, MGF1 with SHA-384, and a 48-byte salt: 384 bytes, 768 hex characters.
+2. ML-DSA-65 (FIPS 204): 3,309 bytes, 6,618 hex characters.
+
+The `signature` field is the first followed by the second, 7,386 lowercase hex characters in total. A verifier MUST accept a hybrid signature only if both component signatures verify. It MUST reject an RSA component whose key is not exactly 3072 bits, and any signature of the wrong length. The payload `hash` remains the SHA-256 digest defined in Section 7.
+
+`crypto_profile` is part of the signed bytes, so a component signature taken from a hybrid signature does not verify under the classical or ML-DSA profile, and the reverse.
+
+The hybrid profile requires a hybrid key: one RSA-3072 key and one ML-DSA-65 key, registered together. The private key text is one PKCS#8 `PRIVATE KEY` PEM block followed by one `A2SPA ML-DSA-65 PRIVATE KEY` block. The public key text is one SubjectPublicKeyInfo `PUBLIC KEY` PEM block followed by one `A2SPA ML-DSA-65 PUBLIC KEY` block. Each A2SPA block is the base64 of the raw FIPS 204 key, wrapped at 64 characters.
+
+### 8.2 Required Profiles and Downgrade Protection
+
+An agent MAY be restricted to a set of required profiles, for example the hybrid profile only. A request from that agent signed under any other profile, including the legacy profile, MUST be rejected. A verifier deployment MAY also disable the legacy profile for all agents.
+
+The hosted service reports such a rejection as a signature failure (HTTP `400`), without saying which check failed.
+
 ## 9. Freshness, Replay, and Retry Controls
 
 A2SPA uses payload-bound freshness controls:
@@ -308,7 +333,16 @@ Receipt body fields include:
 - `operation_id`
 - `metadata`
 
-Receipt signatures use RSA-PSS-SHA256. Receipt verification is separate from payload signature verification. A receipt verifier that uses a trusted key registry MUST reject receipts signed by a key the registry marks as revoked or disabled.
+Receipt signatures use RSA-PSS-SHA256. Receipt verification is separate from payload signature verification.
+
+From `2.5.0`, a verifier deployment MAY also sign each receipt with ML-DSA-65. Such a receipt envelope carries four more fields:
+
+- `pq_signature_algorithm` (`ML-DSA-65`)
+- `pq_key_id`, the lowercase hex SHA-256 of the raw ML-DSA-65 public key
+- `pq_signature`, the hex ML-DSA-65 signature over the same canonical receipt bytes as the RSA signature
+- `pq_public_key`, the `A2SPA ML-DSA-65 PUBLIC KEY` block
+
+A receipt verifier configured with a trusted ML-DSA-65 receipt key MUST require all four fields, MUST require `pq_public_key` to be that trusted key, and MUST verify both signatures. Removing the ML-DSA fields from such a receipt MUST cause verification to fail. A receipt verifier without a trusted ML-DSA key verifies the RSA signature only. Receipt verifiers from `2.4.x` reject envelopes that carry these fields, so receipt verifiers MUST be upgraded before a deployment turns ML-DSA receipt signing on. A receipt verifier that uses a trusted key registry MUST reject receipts signed by a key the registry marks as revoked or disabled.
 
 A valid receipt proves the verifier's signed decision and the fields bound into it. It does not by itself prove that a caller or downstream target executed or committed the action.
 
@@ -347,7 +381,7 @@ Private keys MUST be kept out of source control, logs, browser code, chat transc
 
 Verifier availability MUST NOT weaken fail-closed behavior. If the verifier cannot answer, or answers with a rate-limit or unavailability status, the caller or enforcement point must not proceed as if the action is authorized.
 
-Profile negotiation MUST be explicit. Unsupported signature or serialization profiles must fail rather than downgrade silently.
+Profile negotiation MUST be explicit. Unsupported signature or serialization profiles must fail rather than downgrade silently. Agents that have moved to the hybrid profile SHOULD be restricted to it (Section 8.2), so that a stolen or broken classical key cannot be used in their place.
 
 Receipts are audit evidence, not a substitute for checking the live authorization decision before execution.
 
@@ -388,6 +422,7 @@ Independent implementations should verify:
 - UTF-8 byte encoding.
 - SHA-256 payload hash calculation.
 - RSA PKCS#1 v1.5 SHA-256 signature verification for the classical profile.
+- For the hybrid profile: the component order, RSA-PSS parameters, component lengths, and the requirement that both components verify (Section 8.1).
 - Exact decision handling for `authorized`, `refer_hold`, and `denied`.
 - Request and response shapes against the published OpenAPI contract.
 
@@ -401,6 +436,7 @@ The following topics are open for external technical review:
 - How to specify target-side operation ids without overclaiming exactly-once side-effect guarantees.
 - How to represent human review without allowing natural-language summaries to replace exact payload binding.
 - Whether operation identity and exact-retry semantics should be normative for all verifiers or only for managed deployments.
+- Whether a future hybrid profile should also move the payload hash to SHA-384, and whether ML-DSA-87 or SLH-DSA profiles should be defined.
 
 ## 19. References
 
@@ -410,20 +446,21 @@ The following topics are open for external technical review:
 - RFC 6234: US Secure Hash Algorithms.
 - FIPS 204: Module-Lattice-Based Digital Signature Standard.
 - OpenAPI contract: `https://aimodularity.com/A2SPA/openapi.json`.
-- Python helper package: `a2spa==2.4.2`.
-- Node.js helper package: `a2spa@2.4.2`.
+- Python helper package: `a2spa==2.5.0`.
+- Node.js helper package: `a2spa@2.5.0`.
 
 ## Appendix A. Earlier Draft Disposition
 
 The earlier `v0.9.1-clean` draft contains useful review structure, including role separation, invariants, threat modeling, conformance framing, security considerations, and falsification criteria.
 
-It should not be copied verbatim into current public documentation because it includes claims that do not match A2SPA behavior. Specifically, it uses IETF-style status language, names a Go/Rust reference implementation, selects Ed25519 as mandatory baseline, treats RFC 8785 JCS as the baseline signed-byte profile, and describes EEP-issued challenge nonces and execution tokens. None of these are A2SPA `2.4.2` behavior.
+It should not be copied verbatim into current public documentation because it includes claims that do not match A2SPA behavior. Specifically, it uses IETF-style status language, names a Go/Rust reference implementation, selects Ed25519 as mandatory baseline, treats RFC 8785 JCS as the baseline signed-byte profile, and describes EEP-issued challenge nonces and execution tokens. None of these are A2SPA `2.5.0` behavior.
 
 ## Appendix B. Implementation Status
 
-- The `2.4.2` hosted service, Python package, and npm package share one version and implement protocol `v1.0`.
-- Releases `2.4.1` and `2.4.2` made no protocol, API, or signed-byte changes. Integrations built against `2.4.0` remain compatible.
-- `2.4.2` has completed internal engineering validation. It has not been independently audited, certified, or validated by a third party, and nothing in this repository should be read as such a claim.
+- The `2.5.0` hosted service, Python package, and npm package share one version and implement protocol `v1.0`.
+- `2.5.0` adds the hybrid profile, required profiles, and optional ML-DSA-65 receipt signatures. The classical profile remains the default, the Signed Bytes V1 profile is unchanged, and integrations built against `2.4.0` remain compatible.
+- Releases `2.4.1` to `2.4.9` made no protocol, API, or signed-byte changes.
+- `2.5.0` has completed internal engineering validation. It has not been independently audited, certified, or validated by a third party, and nothing in this repository should be read as such a claim.
 
 ## Appendix C. Scope of Disclosure
 

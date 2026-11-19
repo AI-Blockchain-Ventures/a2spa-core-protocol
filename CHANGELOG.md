@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.9.4 - 2.5.0-Aligned Review Draft - November 19, 2026
+
+Aligns the protocol repository with the A2SPA hosted service and helper packages `2.5.0` (protocol `v1.0`, HTTP API `/v1`).
+
+- Adds the hybrid post-quantum profile `a2spa.hybrid.rsa3072_pss_sha384.mldsa65.v1`: RSA-3072 RSASSA-PSS (SHA-384) and ML-DSA-65 signatures over the same signed bytes, both required (Section 8.1).
+- Specifies the hybrid signature encoding, component lengths, and key text format.
+- Adds per-agent required profiles and the deployment-wide legacy cut-off as downgrade protection (Section 8.2).
+- Adds the optional ML-DSA-65 receipt signature fields and the rule that a verifier with a trusted ML-DSA key requires them (Section 12).
+- Moves the helper package references to `2.5.0` and states the supported Python and Node.js versions.
+- Signed Bytes V1, the payload hash, and the classical default profile are unchanged.
+
 ## v0.9.3 - 2.4.2-Aligned Review Draft - October 29, 2026
 
 Aligns the protocol repository with the A2SPA hosted service and helper packages `2.4.2` (protocol `v1.0`, HTTP API `/v1`).
