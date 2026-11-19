@@ -2,9 +2,9 @@
 
 **Status:** Independent Technical Working Draft
 
-**Specification Version:** 0.9.3
+**Specification Version:** 0.9.4
 
-**Implementation Snapshot:** A2SPA hosted service and helper packages `2.4.2` (protocol `v1.0`, HTTP API `/v1`)
+**Implementation Snapshot:** A2SPA hosted service and helper packages `2.5.0` (protocol `v1.0`, HTTP API `/v1`)
 
 **Review Status:** External technical review requested
 
@@ -14,7 +14,7 @@ Agent-to-Secure Payload Authorization (A2SPA) defines an execution-time authoriz
 
 The current reviewable text is:
 
-- [`spec/A2SPA_Core_Protocol_Specification_v0.9.3.md`](spec/A2SPA_Core_Protocol_Specification_v0.9.3.md)
+- [`spec/A2SPA_Core_Protocol_Specification_v0.9.4.md`](spec/A2SPA_Core_Protocol_Specification_v0.9.4.md)
 
 The machine-readable API contract is published at <https://aimodularity.com/A2SPA/openapi.json>.
 
@@ -44,8 +44,8 @@ This repository describes the externally observable wire contract needed for int
 
 The public A2SPA helper packages are available as:
 
-- Python: `pip install a2spa==2.4.2`
-- Node.js: `npm install a2spa@2.4.2`
+- Python: `pip install a2spa==2.5.0` (add the `[pq]` extra for ML-DSA and hybrid signing)
+- Node.js: `npm install a2spa@2.5.0`
 
 The public API is available at:
 
@@ -53,7 +53,7 @@ The public API is available at:
 - Canonical routes: `/v1/*`
 - Compatibility aliases: `/api/*` (same decisions and responses; new integrations should use `/v1`)
 
-Releases `2.4.1` and `2.4.2` made no protocol, API, or signed-byte changes.
+Release `2.5.0` adds the hybrid post-quantum signature profile, per-agent required profiles, and optional ML-DSA-65 receipt signatures. The Signed Bytes V1 profile and the classical default are unchanged.
 
 ## Technical Review Requested
 
@@ -71,7 +71,7 @@ Please open a GitHub Issue with the relevant section number and severity: `block
 
 ## Status Clarification
 
-This repository is an independent technical working draft. It is not an IETF working-group document, adopted standard, certification, or security audit. A2SPA `2.4.2` has completed internal engineering validation only; it has not been independently audited or certified.
+This repository is an independent technical working draft. It is not an IETF working-group document, adopted standard, certification, or security audit. A2SPA `2.5.0` has completed internal engineering validation only; it has not been independently audited or certified.
 
 ## Rights
 
